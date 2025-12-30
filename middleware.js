@@ -1,49 +1,66 @@
-// middleware.js
 import { NextResponse } from "next/server";
-import { jwtVerify } from "jose";
+import { verifyToken } from "./lib/jwt";
 
-export async function middleware(request) {
-  //tambahkan ini sementara untuk bypass middleware di pertemuan 08. CRUD API Lanjutan
-  if (process.env.DISABLE_AUTH_MIDDLEWARE === "true") {
-    console.log("Middleware dinonaktifkan sementara");
+const rateLimit = new Map();
+
+export async function middleware(req) {
+  const path = req.nextUrl.pathname;
+
+  /* =====================
+     RATE LIMIT (BONUS)
+     ===================== */
+  const ip = req.ip ?? "unknown";
+  const now = Date.now();
+  const last = rateLimit.get(ip) || 0;
+
+  if (now - last < 1000) {
+    return NextResponse.json(
+      { success: false, error: "Too many requests", code: 429 },
+      { status: 429 }
+    );
+  }
+  rateLimit.set(ip, now);
+
+  /* =====================
+     LOGGING (BONUS)
+     ===================== */
+  console.log(req.method, path);
+
+  /* =====================
+     PUBLIC AUTH
+     ===================== */
+  if (path.startsWith("/api/auth")) {
     return NextResponse.next();
   }
 
-  // 1. Ambil token dari Header
-  const authHeader = request.headers.get("Authorization");
-  
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  /* =====================
+     AUTHORIZATION
+     ===================== */
+  const auth = req.headers.get("authorization");
+  if (!auth) {
     return NextResponse.json(
-        { message: "Unauthorized: Token missing" }, 
-        { status: 401 }
+      { success: false, error: "Unauthorized", code: 401 },
+      { status: 401 }
     );
   }
 
-  const token = authHeader.split(" ")[1]; // Ambil string setelah "Bearer"
+  const token = auth.split(" ")[1];
 
   try {
-    // 2. Verifikasi Token
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    await jwtVerify(token, secret);
+    const { payload } = await verifyToken(token);
 
-    // 3. Jika sukses, lanjut
-    return NextResponse.next();
-
-  } catch (error) {
-    // 4. Jika token salah/expired
-    console.error("Token salah/expired", error);
+    const res = NextResponse.next();
+    res.headers.set("x-user-id", payload.id);
+    res.headers.set("x-user-role", payload.role);
+    return res;
+  } catch {
     return NextResponse.json(
-        { message: "Unauthorized: Invalid token" }, 
-        { status: 401 }
+      { success: false, error: "Invalid token", code: 401 },
+      { status: 401 }
     );
   }
 }
 
 export const config = {
-  // Tentukan route mana yang difilter middleware ini
-  // Contoh: Semua route di dalam /api/products dan /api/users
-  matcher: [
-    "/api/products/:path*", 
-    "/api/users/:path*"
-  ],
+  matcher: ["/api/:path*"],
 };

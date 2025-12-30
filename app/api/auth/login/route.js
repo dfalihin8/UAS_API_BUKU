@@ -1,40 +1,51 @@
-import { NextResponse } from "next/server";
+import bcrypt from "bcrypt";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
-import { SignJWT } from "jose"; // Import dari jose
+import { generateAccessToken, generateRefreshToken } from "@/lib/jwt";
+import { NextResponse } from "next/server";
 
-export async function POST(request) {
-  try {
-    const { email, password } = await request.json();
+const ADMIN_EMAIL = "admin@mail.com";
 
-    // 1. Cari User
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-    }
+export async function POST(req) {
+  const { email, password } = await req.json();
 
-    // 2. Cek Password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    
-    if (!isPasswordValid) {
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-    }
+  const user = await prisma.user.findUnique({
+    where: { email }
+  });
 
-    // 3. Buat Token (Payload: id, email)
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const token = await new SignJWT({ id: user.id, email: user.email })
-      .setProtectedHeader({ alg: "HS256" })
-      .setExpirationTime("2h") // Token berlaku 2 jam
-      .sign(secret);
-
-    // 4. Kirim Token
-    return NextResponse.json({ 
-        message: "Login Success", 
-        token: token 
-    });
-
-  } catch (error) {
-    console.error("Error GET User: ", error);
-    return NextResponse.json({ message: "Error" }, { status: 500 });
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return NextResponse.json(
+      { success: false, error: "Invalid login", code: 401 },
+      { status: 401 }
+    );
   }
+
+  //  FORCE ADMIN BY EMAIL
+  let role = user.role;
+
+  if (user.email === ADMIN_EMAIL && user.role !== "ADMIN") {
+    role = "ADMIN";
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { role: "ADMIN" }
+    });
+  }
+
+  const payload = {
+    id: user.id,
+    role
+  };
+
+  const accessToken = await generateAccessToken(payload);
+  const refreshToken = await generateRefreshToken(payload);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { refreshToken }
+  });
+
+  return NextResponse.json({
+    success: true,
+    data: { accessToken, refreshToken }
+  });
 }
