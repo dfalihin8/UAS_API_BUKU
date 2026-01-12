@@ -72,4 +72,5 @@ npx prisma migrate dev
 npm run dev
 
 #Link VERCEL
+
 uas-api-buku.vercel.app
