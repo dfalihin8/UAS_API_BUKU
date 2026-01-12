@@ -21,7 +21,7 @@ POST /api/auth/login
   "email": "user@mail.com",
   "password": "password"
 }
-# ini respon jika berhasil login
+(ini respon jika berhasil login)
 {
   "success": true,
   "data": {
@@ -56,6 +56,7 @@ PUT /api/books/:id  (update semua field)
   "author": "Dalilul.F",
   "year": 2046
 }
+
 PATCH /api/books/:id  (update sebagian)
 {
   "title": "Judul Baru"
