@@ -21,6 +21,7 @@ POST /api/auth/login
   "email": "user@mail.com",
   "password": "password"
 }
+
 (ini respon jika berhasil login)
 {
   "success": true,
