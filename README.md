@@ -17,6 +17,12 @@ POST /api/auth/register
 
 POST /api/auth/login
 {
+  "name": "User",
+  "email": "user@mail.com",
+  "password": "password"
+}
+# ini respon jika berhasil login
+{
   "success": true,
   "data": {
     "accessToken": "JWT_ACCESS_TOKEN",
